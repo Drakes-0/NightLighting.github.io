@@ -17,7 +17,7 @@
             privateFunc.call(navigator, constraints, resolve, reject);
         });
     });
-    var SERVER_URL = 'https://35.192.32.244:5000';
+    var SERVER_URL = 'http://35.192.32.244:5000/model/predict?start_time=0';
     var button = document.getElementById('audio-button');
     var BUFFER_SIZE = 4096;
     var CHANNEL_COUNT = 2;
@@ -28,24 +28,30 @@
     var source = null;
     var processor = null;
     var msPointer = null;
+    window.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+    });
+    var askForPermission = function () {
+        getUserMedia({ audio: true }).then(function (ms) {
+            ms.getAudioTracks()[0].stop();
+            granted = true;
+        }).catch(console.error);
+    };
     if (navigator.permissions && navigator.permissions.query) {
         navigator.permissions.query({ name: 'microphone' }).then(function (result) {
             if (result.state === 'granted') {
                 granted = true;
             }
             else if (result.state === 'prompt') {
-                getUserMedia({ audio: true }).then(function (ms) {
-                    ms.getAudioTracks()[0].stop();
-                    granted = true;
-                });
+                askForPermission();
             }
         }).catch(function (e) {
             console.error(e);
-            granted = true;
+            askForPermission();
         });
     }
     else {
-        granted = true;
+        askForPermission();
     }
     var reset = function () {
         if (msPointer) {
@@ -129,13 +135,14 @@
         var formData = new FormData();
         formData.append(fileField, file);
         var xhr = new XMLHttpRequest();
-        xhr.open('POST', url, true);
-        xhr.send(formData);
         xhr.onreadystatechange = function () {
             if (xhr.readyState === 4) {
                 console.log(xhr.responseText);
             }
         };
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('accept', 'application/json');
+        xhr.send(formData);
     };
     var downloadRecord = function (file) {
         var link = document.createElement('a');
@@ -146,7 +153,7 @@
     var handleRecord = function () {
         var pcm = mergePCM();
         var wav = createFile(pcm);
-        downloadRecord(wav);
+        uploadRecord(SERVER_URL, wav, function () { }, 'audio');
     };
     button.addEventListener('touchstart', function () {
         if (!granted) {

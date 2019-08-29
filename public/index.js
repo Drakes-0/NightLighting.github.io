@@ -17,7 +17,7 @@
             privateFunc.call(navigator, constraints, resolve, reject);
         });
     });
-    var SERVER_URL = 'http://35.192.32.244:5000/model/predict?start_time=0';
+    var SERVER_URL = 'https://35.192.32.244/model/predict?start_time=0';
     var button = document.getElementById('audio-button');
     var BUFFER_SIZE = 4096;
     var CHANNEL_COUNT = 2;

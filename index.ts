@@ -1,0 +1,225 @@
+declare class VConsole {
+    constructor()
+}
+
+(function () {
+    new VConsole()
+
+    if (typeof Promise !== 'function' || typeof AudioContext !== 'function') {
+        throw new Error('Old browser version detected. Please update your browser')
+    }
+
+    const getUserMedia: (constraints: object) => Promise<any> = (
+        navigator.mediaDevices
+        && navigator.mediaDevices.getUserMedia
+        && navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+    ) || (constraints => {
+        const privateFunc = (navigator as any).getUserMedia
+            || (navigator as any).webkitGetUserMedia
+            || (navigator as any).mozGetUserMedia
+            || (navigator as any).msGetUserMedia
+
+        if (!privateFunc) {
+            return Promise.reject(new Error('GetUserMedia is not supported'))
+        }
+
+        return new Promise((resolve, reject) => {
+            privateFunc.call(navigator, constraints, resolve, reject)
+        })
+    })
+
+    const SERVER_URL = 'https://35.192.32.244/model/predict?start_time=0'
+    const button = document.getElementById('audio-button')
+    const BUFFER_SIZE = 4096
+    const CHANNEL_COUNT = 2
+    const SOUND_CHANNELS = [[], []]
+
+    let granted = false
+    let startTime = null
+    let audioCtx = null
+    let source = null
+    let processor = null
+    let msPointer = null
+
+    window.addEventListener('contextmenu', e => {
+        e.preventDefault()
+    })
+
+    const askForPermission = () => {
+        getUserMedia({ audio: true }).then(ms => {
+            ms.getAudioTracks()[0].stop()
+            granted = true
+        }).catch(console.error)
+    }
+
+    if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'microphone' }).then(result => {
+            if (result.state === 'granted') {
+                granted = true
+            } else if (result.state === 'prompt') {
+                askForPermission()
+            }
+        }).catch(e => {
+            console.error(e)
+            askForPermission()
+        })
+    } else {
+        askForPermission()
+    }
+
+    const reset = (): void => {
+        if (msPointer) {
+            msPointer.getAudioTracks()[0].stop()
+            msPointer = null
+        }
+        if (source) {
+            source.disconnect()
+            source = null
+        }
+        if (processor) {
+            processor.disconnect()
+            processor = null
+        }
+        if (audioCtx) {
+            audioCtx = null
+        }
+        if (startTime) {
+            startTime = null
+        }
+        SOUND_CHANNELS.forEach(c => {
+            c.length = 0
+        })
+    }
+
+    const mergeChannel = (channel: Float32Array[]): Float32Array => {
+        const length = channel.length
+        const data = new Float32Array(length * BUFFER_SIZE)
+        let offset = 0
+        for (let i = 0; i < length; i++) {
+            data.set(channel[i], offset)
+            offset += BUFFER_SIZE
+        }
+        return data
+    }
+
+    const mergePCM = (): Float32Array => {
+        const left = mergeChannel(SOUND_CHANNELS[0])
+        const right = mergeChannel(SOUND_CHANNELS[1])
+        const length = left.length
+        const data = new Float32Array(length * 2)
+        for (let i = 0; i < length; i++) {
+            let j = i * 2
+            data[j] = left[i]
+            data[j + 1] = right[i]
+        }
+        return data
+    }
+
+    const writeUTFBytes = (view: DataView, offset: number, string: string) => {
+        const length = string.length
+        for (let i = 0; i < length; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i))
+        }
+    }
+
+    const createFile = (audioData: Float32Array): Blob => {
+        const WAV_HEAD_SIZE = 44
+        const TOTAL_SIZE = audioData.length * 2 + WAV_HEAD_SIZE
+        const buffer = new ArrayBuffer(TOTAL_SIZE)
+        const view = new DataView(buffer)
+        writeUTFBytes(view, 0, 'RIFF')
+        view.setUint32(4, TOTAL_SIZE, true)
+        writeUTFBytes(view, 8, 'WAVE')
+        writeUTFBytes(view, 12, 'fmt ')
+        view.setUint32(16, 16, true)
+        view.setUint16(20, 1, true)
+        view.setUint16(22, 2, true)
+        view.setUint32(24, 44100, true)
+        view.setUint32(28, 44100 * 2, true)
+        view.setUint16(32, 2 * 2, true)
+        view.setUint16(34, 16, true)
+        writeUTFBytes(view, 36, 'data')
+        view.setUint32(40, TOTAL_SIZE - WAV_HEAD_SIZE, true)
+
+        let index = WAV_HEAD_SIZE
+        let volume = 1
+        for (let i = 0, l = audioData.length; i < l; i++) {
+            view.setInt16(index, audioData[i] * 32767 * volume, true)
+            index += 2
+        }
+
+        return new Blob([new Uint8Array(buffer)], { type: 'audio/x-wav' })
+    }
+
+    const uploadRecord = (url: string, file: any, callback: Function, fileField: string = 'file'): void => {
+        const formData = new FormData()
+        formData.append(fileField, file)
+        const xhr = new XMLHttpRequest()
+        xhr.onreadystatechange = () => {
+            if (xhr.readyState === 4) {
+                console.log(xhr.responseText)
+            }
+        }
+        xhr.open('POST', url, true)
+        // xhr.setRequestHeader('Content-Type', 'multipart/form-data')
+        xhr.setRequestHeader('accept', 'application/json')
+        xhr.send(formData)
+    }
+
+    const downloadRecord = (file: any): void => {
+        const link = document.createElement('a')
+        link.href = URL.createObjectURL(file)
+        link.download = 'audio'
+        link.click()
+    }
+
+    const handleRecord = () => {
+        const pcm = mergePCM()
+        const wav = createFile(pcm)
+
+        // downloadRecord(wav)
+        uploadRecord(SERVER_URL, wav, function () { }, 'audio')
+    }
+
+    button.addEventListener('touchstart', function () {
+        if (!granted) {
+            return alert('请提供麦克风访问权限')
+        }
+        this.classList.add('active')
+        getUserMedia({
+            audio: {
+                sampleRate: 44100,
+                channelCount: CHANNEL_COUNT,
+                volume: 1.0
+            }
+        }).then(mediaStream => {
+            startTime = Date.now()
+            audioCtx = new AudioContext()
+            source = audioCtx.createMediaStreamSource(mediaStream)
+            processor = audioCtx.createScriptProcessor(BUFFER_SIZE, CHANNEL_COUNT, CHANNEL_COUNT)
+            msPointer = mediaStream
+            processor.onaudioprocess = ({ inputBuffer }) => {
+                SOUND_CHANNELS.forEach((c, i) => {
+                    c.push(inputBuffer.getChannelData(i).slice(0))
+                })
+            }
+            processor.connect(audioCtx.destination)
+            source.connect(processor)
+        }).catch(e => {
+            console.error(e)
+        })
+    })
+
+    button.addEventListener('touchend', function () {
+        this.classList.remove('active')
+        if (startTime) {
+            if (Date.now() - startTime > 5000) {
+                handleRecord()
+            } else {
+                alert('语音长度过短，请重新录音')
+            }
+        }
+        reset()
+    })
+})()
+

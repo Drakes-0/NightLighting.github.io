@@ -65,6 +65,15 @@
             font-size: 12px;
             padding: 0 12%;
             margin-top: 1vh;
+            margin-bottom: 18vh;
+        }
+
+        .app .content .result {
+            font-size: 16px;
+            color: #FFF;
+            /* text-align: left;
+            text-indent: 12%; */
+            text-align: center;
         }
 
         .app .content .mic {
@@ -78,6 +87,22 @@
             bottom: 10vh;
             left: 36vw;
             right: 36vw;
+        }
+
+        .app .content .loading {
+            position: absolute;
+            height: 100%;
+            width: 100%;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            background-image: url(/public/loading.svg);
+            background-repeat: no-repeat;
+            background-position: 50% 50%;
+            z-index: 9;
+            display: none;
         }
 
         .app .content .mic.active {
@@ -116,8 +141,14 @@
     <div class="app">
         <div class="background"></div>
         <div class="content">
+            <div class="loading" id="loading"></div>
             <p class="title">语音自动识别Demo</p>
             <p class="tip">按住录音按钮上传声音并自动识别，长度5~10秒为最佳，领域：人声/情绪/背景音乐/其他噪音环境</p>
+            <p class="result" id='audio-sex'>性别:</p>
+            <p class="result" id='audio-age'>年龄:</p>
+            <p class="result" id='audio-tone'>音色:</p>
+            <p class="result" id='audio-emotion'>情绪:</p>
+            <p class="result">背景/其他：暂未解析</p>
             <div class="mic" id="audio-button">
                 <i class="icon"></i>
             </div>

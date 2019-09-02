@@ -28,11 +28,25 @@ declare class VConsole {
         })
     })
 
-    const SERVER_URL = 'https://35.192.32.244/model/predict?start_time=0'
+    const SERVER_URL = 'https://wujiang.me/model/predict?start_time=0'
     const button = document.getElementById('audio-button')
     const BUFFER_SIZE = 4096
     const CHANNEL_COUNT = 2
     const SOUND_CHANNELS = [[], []]
+
+    const SPEECH_LABEL = ['/m/09x0r']
+
+    const GENDER_MALE_LABEL = ['/m/05zppz', '/t/dd00003']
+    const GENDER_FEMALE_LABEL = ['/m/02zsn', '/t/dd00004']
+    const GENDER_NEUTRAL_LABEL = ['/m/0ytgt', '/m/0261r1', '/t/dd00135', '/t/dd00001', '/t/dd00002', '/t/dd00005', '/t/dd00013']
+
+    const AGE_ADULT_LABEL = ['/m/05zppz', '/m/02zsn', '/t/dd00003', '/t/dd00004']
+    const AGE_NONAGE_LABEL = ['/m/0ytgt', '/m/0261r1', '/t/dd00135', '/t/dd00001', '/t/dd00002', '/t/dd00005', '/t/dd00013']
+
+    const EMOTION_ANGER_LABEL = ['/m/07p6fty', '/m/07q4ntr', '/t/dd00135', '/m/03qc9zr', '/m/07qf0zm', '/m/0ghcn6']
+    const EMOTION_EXCITED_LABEL = ['/m/07p6fty', '/m/07rwj3x', '/m/04gy_2', '/t/dd00135', '/m/03qc9zr', '/m/053hz1', '/m/028ght']
+    const EMOTION_LAUGH_LABEL = ['/m/01j3sz', '/t/dd00001', '/m/07r660_', '/m/07s04w4', '/m/07sq110', '/m/07rgt08']
+    const EMOTION_CRY_LABEL = ['/m/0463cq4', '/t/dd00002', '/m/07qz6j3']
 
     let granted = false
     let startTime = null
@@ -91,6 +105,14 @@ declare class VConsole {
         })
     }
 
+    const loading_start = () => {
+        document.getElementById('loading').setAttribute('style', 'display: block')
+    }
+
+    const loading_end = () => {
+        document.getElementById('loading').setAttribute('style', 'display: none')
+    }
+
     const mergeChannel = (channel: Float32Array[]): Float32Array => {
         const length = channel.length
         const data = new Float32Array(length * BUFFER_SIZE)
@@ -105,7 +127,7 @@ declare class VConsole {
     const mergePCM = (): Float32Array => {
         const left = mergeChannel(SOUND_CHANNELS[0])
         const right = mergeChannel(SOUND_CHANNELS[1])
-        const length = left.length
+        const length = Math.floor(left.length / 44100) * 44100
         const data = new Float32Array(length * 2)
         for (let i = 0; i < length; i++) {
             let j = i * 2
@@ -128,14 +150,14 @@ declare class VConsole {
         const buffer = new ArrayBuffer(TOTAL_SIZE)
         const view = new DataView(buffer)
         writeUTFBytes(view, 0, 'RIFF')
-        view.setUint32(4, TOTAL_SIZE, true)
+        view.setUint32(4, TOTAL_SIZE - 8, true)
         writeUTFBytes(view, 8, 'WAVE')
         writeUTFBytes(view, 12, 'fmt ')
         view.setUint32(16, 16, true)
         view.setUint16(20, 1, true)
         view.setUint16(22, 2, true)
         view.setUint32(24, 44100, true)
-        view.setUint32(28, 44100 * 2, true)
+        view.setUint32(28, 44100 * 2 * 2, true)
         view.setUint16(32, 2 * 2, true)
         view.setUint16(34, 16, true)
         writeUTFBytes(view, 36, 'data')
@@ -157,13 +179,85 @@ declare class VConsole {
         const xhr = new XMLHttpRequest()
         xhr.onreadystatechange = () => {
             if (xhr.readyState === 4) {
-                console.log(xhr.responseText)
+                callback(xhr.responseText)
             }
         }
+        xhr.onerror = xhr.onabort = loading_end
         xhr.open('POST', url, true)
         // xhr.setRequestHeader('Content-Type', 'multipart/form-data')
         xhr.setRequestHeader('accept', 'application/json')
         xhr.send(formData)
+    }
+
+    const predictResultParseHandle = (result: string) => {
+        try {
+            const { predictions: predictResult } = JSON.parse(result)
+            const sexPossibility = []
+            const agePossibility = []
+            const emotionPossibility = []
+            const tonePossibility = []
+            // let weight = predictResult.length
+            let speech = false
+
+            const probabilityToPercent = float => `(${Math.round(float * 100)}%)`
+
+            while (predictResult.length > 0) {
+                let { label_id: label, probability } = predictResult.shift()
+                if (SPEECH_LABEL.indexOf(label) > -1) {
+                    speech = true
+                }
+                if (GENDER_MALE_LABEL.indexOf(label) > -1) {
+                    sexPossibility.push('男性')
+                    tonePossibility.push('磁性大叔' + probabilityToPercent(probability))
+                }
+                if (GENDER_FEMALE_LABEL.indexOf(label) > -1) {
+                    sexPossibility.push('女性')
+                    tonePossibility.push('美艳御姐' + probabilityToPercent(probability))
+                }
+                if (GENDER_NEUTRAL_LABEL.indexOf(label) > -1) {
+                    sexPossibility.push('中性')
+                    tonePossibility.push('可攻可受' + probabilityToPercent(probability))
+                }
+                if (AGE_ADULT_LABEL.indexOf(label) > -1) {
+                    agePossibility.push('成年(成熟的)')
+                    tonePossibility.push('成熟稳重' + probabilityToPercent(probability))
+                }
+                if (AGE_NONAGE_LABEL.indexOf(label) > -1) {
+                    agePossibility.push('未成年(青涩的)')
+                    tonePossibility.push('萝莉正太' + probabilityToPercent(probability))
+                }
+                if (EMOTION_ANGER_LABEL.indexOf(label) > -1) {
+                    emotionPossibility.push('(愤怒/咆哮)')
+                    tonePossibility.push('金毛狮王' + probabilityToPercent(probability))
+                }
+                if (EMOTION_EXCITED_LABEL.indexOf(label) > -1) {
+                    emotionPossibility.push('(激动/兴奋)')
+                    tonePossibility.push('春光灿烂猪八戒' + probabilityToPercent(probability))
+                }
+                if (EMOTION_LAUGH_LABEL.indexOf(label) > -1) {
+                    emotionPossibility.push('(开心/笑声)')
+                    tonePossibility.push('快乐逗比' + probabilityToPercent(probability))
+                }
+                if (EMOTION_CRY_LABEL.indexOf(label) > -1) {
+                    emotionPossibility.push('(悲伤/哭泣)')
+                    tonePossibility.push('祥林嫂' + probabilityToPercent(probability))
+                }
+                // weight--
+            }
+
+            if (speech || sexPossibility.length || agePossibility.length) {
+                document.getElementById('audio-sex').innerText = `性别：${sexPossibility.length ? sexPossibility.join('，') : '春哥???'}`
+                document.getElementById('audio-age').innerText = `年龄：${agePossibility.length ? agePossibility.join('，') : '老顽童???'}`
+                document.getElementById('audio-tone').innerText = `音色：${tonePossibility.length ? tonePossibility.join('，') : '平凡路人'}`
+                document.getElementById('audio-emotion').innerText = `情绪：${emotionPossibility.length ? emotionPossibility.join('，') : '(莫得感情)'}`
+            } else {
+                alert('未检测到人声，请重新录入')
+            }
+            loading_end()
+        } catch (e) {
+            alert('服务异常，请稍后重试')
+            loading_end()
+        }
     }
 
     const downloadRecord = (file: any): void => {
@@ -174,11 +268,12 @@ declare class VConsole {
     }
 
     const handleRecord = () => {
+        loading_start()
         const pcm = mergePCM()
         const wav = createFile(pcm)
 
         // downloadRecord(wav)
-        uploadRecord(SERVER_URL, wav, function () { }, 'audio')
+        uploadRecord(SERVER_URL, wav, predictResultParseHandle, 'audio')
     }
 
     button.addEventListener('touchstart', function () {

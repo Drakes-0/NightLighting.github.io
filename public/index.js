@@ -17,15 +17,16 @@
             privateFunc.call(navigator, constraints, resolve, reject);
         });
     });
-    var SERVER_URL = 'https://35.192.32.244/model/predict?start_time=0';
+    var SERVER_URL = 'https://wujiang.me/model/predict?start_time=0';
     var button = document.getElementById('audio-button');
     var BUFFER_SIZE = 4096;
     var CHANNEL_COUNT = 2;
     var SOUND_CHANNELS = [[], []];
+    var SPEECH_LABEL = ['/m/09x0r'];
     var GENDER_MALE_LABEL = ['/m/05zppz', '/t/dd00003'];
     var GENDER_FEMALE_LABEL = ['/m/02zsn', '/t/dd00004'];
-    var AGE_ADULT_LABEL = ['/m/05zppz', '/m/02zsn', '/t/dd00003', '/t/dd00004'];
     var GENDER_NEUTRAL_LABEL = ['/m/0ytgt', '/m/0261r1', '/t/dd00135', '/t/dd00001', '/t/dd00002', '/t/dd00005', '/t/dd00013'];
+    var AGE_ADULT_LABEL = ['/m/05zppz', '/m/02zsn', '/t/dd00003', '/t/dd00004'];
     var AGE_NONAGE_LABEL = ['/m/0ytgt', '/m/0261r1', '/t/dd00135', '/t/dd00001', '/t/dd00002', '/t/dd00005', '/t/dd00013'];
     var EMOTION_ANGER_LABEL = ['/m/07p6fty', '/m/07q4ntr', '/t/dd00135', '/m/03qc9zr', '/m/07qf0zm', '/m/0ghcn6'];
     var EMOTION_EXCITED_LABEL = ['/m/07p6fty', '/m/07rwj3x', '/m/04gy_2', '/t/dd00135', '/m/03qc9zr', '/m/053hz1', '/m/028ght'];
@@ -84,6 +85,12 @@
         SOUND_CHANNELS.forEach(function (c) {
             c.length = 0;
         });
+    };
+    var loading_start = function () {
+        document.getElementById('loading').setAttribute('style', 'display: block');
+    };
+    var loading_end = function () {
+        document.getElementById('loading').setAttribute('style', 'display: none');
     };
     var mergeChannel = function (channel) {
         var length = channel.length;
@@ -149,6 +156,7 @@
                 callback(xhr.responseText);
             }
         };
+        xhr.onerror = xhr.onabort = loading_end;
         xhr.open('POST', url, true);
         xhr.setRequestHeader('accept', 'application/json');
         xhr.send(formData);
@@ -156,13 +164,68 @@
     var predictResultParseHandle = function (result) {
         try {
             var predictResult = JSON.parse(result).predictions;
-            var sex = [];
-            var age = [];
-            var emotion = [];
-            var background = [];
-            var weight = predictResult.length;
+            var sexPossibility = [];
+            var agePossibility = [];
+            var emotionPossibility = [];
+            var tonePossibility = [];
+            var speech = false;
+            var probabilityToPercent = function (float) { return "(" + Math.round(float * 100) + "%)"; };
+            while (predictResult.length > 0) {
+                var _a = predictResult.shift(), label = _a.label_id, probability = _a.probability;
+                if (SPEECH_LABEL.indexOf(label) > -1) {
+                    speech = true;
+                }
+                if (GENDER_MALE_LABEL.indexOf(label) > -1) {
+                    sexPossibility.push('男性');
+                    tonePossibility.push('磁性大叔' + probabilityToPercent(probability));
+                }
+                if (GENDER_FEMALE_LABEL.indexOf(label) > -1) {
+                    sexPossibility.push('女性');
+                    tonePossibility.push('美艳御姐' + probabilityToPercent(probability));
+                }
+                if (GENDER_NEUTRAL_LABEL.indexOf(label) > -1) {
+                    sexPossibility.push('中性');
+                    tonePossibility.push('可攻可受' + probabilityToPercent(probability));
+                }
+                if (AGE_ADULT_LABEL.indexOf(label) > -1) {
+                    agePossibility.push('成年(成熟的)');
+                    tonePossibility.push('成熟稳重' + probabilityToPercent(probability));
+                }
+                if (AGE_NONAGE_LABEL.indexOf(label) > -1) {
+                    agePossibility.push('未成年(青涩的)');
+                    tonePossibility.push('萝莉正太' + probabilityToPercent(probability));
+                }
+                if (EMOTION_ANGER_LABEL.indexOf(label) > -1) {
+                    emotionPossibility.push('(愤怒/咆哮)');
+                    tonePossibility.push('金毛狮王' + probabilityToPercent(probability));
+                }
+                if (EMOTION_EXCITED_LABEL.indexOf(label) > -1) {
+                    emotionPossibility.push('(激动/兴奋)');
+                    tonePossibility.push('春光灿烂猪八戒' + probabilityToPercent(probability));
+                }
+                if (EMOTION_LAUGH_LABEL.indexOf(label) > -1) {
+                    emotionPossibility.push('(开心/笑声)');
+                    tonePossibility.push('快乐逗比' + probabilityToPercent(probability));
+                }
+                if (EMOTION_CRY_LABEL.indexOf(label) > -1) {
+                    emotionPossibility.push('(悲伤/哭泣)');
+                    tonePossibility.push('祥林嫂' + probabilityToPercent(probability));
+                }
+            }
+            if (speech || sexPossibility.length || agePossibility.length) {
+                document.getElementById('audio-sex').innerText = "\u6027\u522B\uFF1A" + (sexPossibility.length ? sexPossibility.join('，') : '春哥???');
+                document.getElementById('audio-age').innerText = "\u5E74\u9F84\uFF1A" + (agePossibility.length ? agePossibility.join('，') : '老顽童???');
+                document.getElementById('audio-tone').innerText = "\u97F3\u8272\uFF1A" + (tonePossibility.length ? tonePossibility.join('，') : '平凡路人');
+                document.getElementById('audio-emotion').innerText = "\u60C5\u7EEA\uFF1A" + (emotionPossibility.length ? emotionPossibility.join('，') : '(莫得感情)');
+            }
+            else {
+                alert('未检测到人声，请重新录入');
+            }
+            loading_end();
         }
         catch (e) {
+            alert('服务异常，请稍后重试');
+            loading_end();
         }
     };
     var downloadRecord = function (file) {
@@ -172,6 +235,7 @@
         link.click();
     };
     var handleRecord = function () {
+        loading_start();
         var pcm = mergePCM();
         var wav = createFile(pcm);
         uploadRecord(SERVER_URL, wav, predictResultParseHandle, 'audio');

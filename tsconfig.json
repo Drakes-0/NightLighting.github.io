@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "target": "es5",
+        "removeComments": true,
+        "sourceMap": false,
+        "outDir": "./public",
+        "downlevelIteration": true,
+        "lib": [
+            "dom",
+            "es2015"
+        ]
+    },
+    "exclude": [
+        "public"
+    ]
+}

@@ -213,9 +213,9 @@
                 }
             }
             if (speech || sexPossibility.length || agePossibility.length) {
-                document.getElementById('audio-sex').innerText = "\u6027\u522B\uFF1A" + (sexPossibility.length ? sexPossibility.join('，') : '春哥???');
-                document.getElementById('audio-age').innerText = "\u5E74\u9F84\uFF1A" + (agePossibility.length ? agePossibility.join('，') : '老顽童???');
-                document.getElementById('audio-tone').innerText = "\u97F3\u8272\uFF1A" + (tonePossibility.length ? tonePossibility.join('，') : '平凡路人');
+                document.getElementById('audio-sex').innerText = "\u6027\u522B\uFF1A" + (sexPossibility.length ? sexPossibility.join('，') : '男性');
+                document.getElementById('audio-age').innerText = "\u5E74\u9F84\uFF1A" + (agePossibility.length ? agePossibility.join('，') : '鹤发童颜');
+                document.getElementById('audio-tone').innerText = "\u97F3\u8272\uFF1A" + (tonePossibility.length ? tonePossibility.join('，') : '平平路人');
                 document.getElementById('audio-emotion').innerText = "\u60C5\u7EEA\uFF1A" + (emotionPossibility.length ? emotionPossibility.join('，') : '(莫得感情)');
             }
             else {
